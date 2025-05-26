@@ -1,0 +1,22 @@
+{
+  "name": "nuxt-ereader",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "nuxt build",
+    "dev": "nuxt dev",
+    "generate": "nuxt generate",
+    "preview": "nuxt preview",
+    "postinstall": "nuxt prepare"
+  },
+  "imports": {
+    "#internal/nuxt/paths": "./node_modules/nuxt/dist/core/runtime/nitro/paths.mjs"
+  },
+  "dependencies": {
+    "jszip": "^3.10.1",
+    "nuxt": "^3.17.4",
+    "vue": "^3.5.14",
+    "vue-router": "^4.5.1",
+    "xml2js": "^0.6.2"
+  }
+}
