@@ -39,7 +39,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useEpubReader } from '~/composables/useEpubReader'
 import { useLibrary } from '~/composables/useLibrary'
@@ -73,6 +73,7 @@ const {
   currentChapterIndex,
   loadEpub,
   goToHref,
+  goToChapter,
   reset
 } = useEpubReader()
 
@@ -112,13 +113,17 @@ onMounted(async () => {
     // Load the EPUB
     await loadEpub(file)
     
-    // Update last opened
-    updateBookProgress(bookId, book.readingProgress.currentChapter, 0)
+    // Update last opened timestamp without changing scroll position
+    book.lastOpened = new Date().toISOString()
     
     // Navigate to saved chapter if available
     if (book.readingProgress.currentChapter > 0) {
-      // TODO: Implement loading specific chapter
+      await goToChapter(book.readingProgress.currentChapter)
     }
+    
+    // Store the saved scroll position in window for the EpubReader to access
+    window.__savedScrollPosition = book.readingProgress.scrollPosition || 0
+    console.log('Saved scroll position for restoration:', window.__savedScrollPosition)
     
     isLoadingBook.value = false
   } catch (err) {
@@ -132,7 +137,9 @@ onMounted(async () => {
 onUnmounted(() => {
   const bookId = route.params.id
   if (bookId && isBookLoaded.value) {
-    updateBookProgress(bookId, currentChapterIndex.value, 0)
+    const contentWrapper = document.querySelector('.chapter-content-wrapper')
+    const scrollPosition = contentWrapper ? contentWrapper.scrollTop : 0
+    updateBookProgress(bookId, currentChapterIndex.value, scrollPosition)
   }
 })
 
@@ -143,10 +150,12 @@ const handleTocNavigate = async (href) => {
 }
 
 const handleBackToLibrary = () => {
-  // Save reading progress
+  // Save reading progress with current scroll position
   const bookId = route.params.id
   if (bookId && isBookLoaded.value) {
-    updateBookProgress(bookId, currentChapterIndex.value, 0)
+    const contentWrapper = document.querySelector('.chapter-content-wrapper')
+    const scrollPosition = contentWrapper ? contentWrapper.scrollTop : 0
+    updateBookProgress(bookId, currentChapterIndex.value, scrollPosition)
   }
   
   // Navigate back to library

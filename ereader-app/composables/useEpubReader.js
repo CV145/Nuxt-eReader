@@ -1,4 +1,4 @@
-import { ref, computed } from 'vue'
+import { ref, computed, nextTick } from 'vue'
 import { EpubParser } from '~/utils/epub/EpubParser'
 import { processParagraphNumbering } from '~/utils/parser/paragraphNumbering'
 
@@ -84,8 +84,8 @@ export const useEpubReader = () => {
     }
   }
 
-  const loadChapter = async (index) => {
-    console.log('Loading chapter:', index)
+  const loadChapter = async (index, scrollToPosition = 0) => {
+    console.log('Loading chapter:', index, 'with scroll position:', scrollToPosition)
     if (!parser.value || index < 0 || index >= totalChapters.value) {
       console.error('Invalid chapter index or no parser:', { index, totalChapters: totalChapters.value, hasParser: !!parser.value })
       return
@@ -114,6 +114,12 @@ export const useEpubReader = () => {
         htmlLength: currentChapter.value?.content?.html?.length,
         htmlPreview: currentChapter.value?.content?.html?.substring(0, 200)
       })
+      
+      // If scroll position provided, we'll restore it after DOM updates
+      if (scrollToPosition > 0) {
+        await nextTick()
+        // The actual scrolling will be handled by the component
+      }
       
     } catch (err) {
       console.error('Failed to load chapter:', err)

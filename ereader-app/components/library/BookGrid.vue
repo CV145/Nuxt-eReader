@@ -1,76 +1,100 @@
 <template>
   <div class="book-grid">
+    <!-- Empty State -->
     <div v-if="books.length === 0" class="empty-state">
-      <Icon name="book-open" class="empty-icon" />
-      <h3>Your library is empty</h3>
-      <p>Upload your first EPUB book to get started</p>
-      <button @click="$emit('upload')" class="btn-primary">
-        Upload Book
+      <div class="empty-illustration">
+        <div class="book-stack">
+          <div class="book book-1"></div>
+          <div class="book book-2"></div>
+          <div class="book book-3"></div>
+        </div>
+      </div>
+      <h3 class="empty-title">Your Library Awaits</h3>
+      <p class="empty-description">Upload your first EPUB book to start building your digital library</p>
+      <button @click="$emit('upload')" class="btn-upload hover-lift">
+        <Icon name="upload" :size="20" />
+        Upload Your First Book
       </button>
     </div>
 
+    <!-- Books Grid -->
     <div v-else class="grid-container">
-      <div 
-        v-for="book in books" 
-        :key="book.id"
-        class="book-card"
-        @click="$emit('selectBook', book)"
-      >
-        <div class="book-cover">
-          <img 
-            v-if="book.metadata.coverImage" 
-            :src="book.metadata.coverImage" 
-            :alt="book.metadata.title"
-            @error="handleImageError"
-          />
-          <div v-else class="cover-placeholder">
-            <Icon name="book" class="placeholder-icon" />
-            <span class="book-title-placeholder">{{ book.metadata.title }}</span>
+      <TransitionGroup name="book-list" tag="div" class="books-grid">
+        <div 
+          v-for="book in books" 
+          :key="book.id"
+          class="book-card hover-lift"
+          @click="$emit('selectBook', book)"
+        >
+          <!-- Cover Section -->
+          <div class="book-cover">
+            <img 
+              v-if="book.metadata.coverImage" 
+              :src="book.metadata.coverImage" 
+              :alt="book.metadata.title"
+              class="cover-image"
+              @error="handleImageError"
+            />
+            <div v-else class="cover-placeholder">
+              <div class="placeholder-pattern"></div>
+              <Icon name="book" :size="48" class="placeholder-icon" />
+              <h4 class="placeholder-title">{{ book.metadata.title }}</h4>
+            </div>
+            
+            <!-- Reading Progress Badge -->
+            <div v-if="book.lastOpened" class="progress-badge glass">
+              <Icon name="clock" :size="14" />
+              {{ formatDate(book.lastOpened) }}
+            </div>
           </div>
-        </div>
-        
-        <div class="book-info">
-          <h3 class="book-title" :title="book.metadata.title">
-            {{ book.metadata.title }}
-          </h3>
-          <p class="book-author" :title="book.metadata.author">
-            {{ book.metadata.author }}
-          </p>
-          <p class="book-size">
-            {{ formatFileSize(book.fileSize) }}
-            <span v-if="book.useIndexedDB" class="storage-indicator" title="Stored in IndexedDB">📦</span>
-          </p>
           
+          <!-- Book Info -->
+          <div class="book-info">
+            <h3 class="book-title" :title="book.metadata.title">
+              {{ book.metadata.title }}
+            </h3>
+            <p class="book-author" :title="book.metadata.author">
+              {{ book.metadata.author }}
+            </p>
+            
+            <div class="book-meta">
+              <span class="book-size">
+                <Icon name="file" :size="14" />
+                {{ formatFileSize(book.fileSize) }}
+              </span>
+              <span v-if="book.useIndexedDB" class="storage-type" title="Stored in browser database">
+                <Icon name="database" :size="14" />
+              </span>
+            </div>
+          </div>
+
+          <!-- Hover Actions -->
           <div class="book-actions">
             <button 
               @click.stop="$emit('selectBook', book)" 
-              class="btn-read"
-              title="Read"
+              class="action-btn btn-read"
+              title="Start Reading"
             >
-              <Icon name="book-open" />
+              <Icon name="book-open" :size="18" />
+              Read
             </button>
             <button 
               @click.stop="$emit('deleteBook', book.id)" 
-              class="btn-delete"
-              title="Delete"
+              class="action-btn btn-delete"
+              title="Remove from Library"
             >
-              <Icon name="trash" />
+              <Icon name="trash" :size="18" />
             </button>
           </div>
         </div>
-
-        <div v-if="book.lastOpened" class="reading-progress">
-          <span class="progress-text">
-            Last read: {{ formatDate(book.lastOpened) }}
-          </span>
-        </div>
-      </div>
+      </TransitionGroup>
     </div>
   </div>
 </template>
 
 <script setup>
 import { defineProps, defineEmits } from 'vue'
+import Icon from '~/components/ui/Icon.vue'
 
 const props = defineProps({
   books: {
@@ -93,23 +117,26 @@ const formatDate = (dateString) => {
   const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24))
   
   if (diffDays === 0) {
-    return 'Today'
+    const diffHours = Math.floor(diffTime / (1000 * 60 * 60))
+    if (diffHours === 0) {
+      const diffMinutes = Math.floor(diffTime / (1000 * 60))
+      return diffMinutes <= 1 ? 'Just now' : `${diffMinutes}m ago`
+    }
+    return `${diffHours}h ago`
   } else if (diffDays === 1) {
     return 'Yesterday'
   } else if (diffDays < 7) {
-    return `${diffDays} days ago`
+    return `${diffDays}d ago`
   } else {
-    return date.toLocaleDateString()
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
   }
 }
 
 const formatFileSize = (bytes) => {
-  if (bytes === 0) return '0 Bytes'
-  
+  if (bytes === 0) return '0 B'
   const k = 1024
-  const sizes = ['Bytes', 'KB', 'MB', 'GB']
+  const sizes = ['B', 'KB', 'MB', 'GB']
   const i = Math.floor(Math.log(bytes) / Math.log(k))
-  
   return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i]
 }
 </script>
@@ -117,77 +144,142 @@ const formatFileSize = (bytes) => {
 <style scoped>
 .book-grid {
   width: 100%;
-  padding: 2rem;
 }
 
+/* Empty State */
 .empty-state {
   text-align: center;
   padding: 4rem 2rem;
-  color: #666;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  animation: fadeIn 0.6s ease-out;
 }
 
-.empty-icon {
-  font-size: 4rem;
-  margin-bottom: 1rem;
-  opacity: 0.5;
-}
-
-.empty-state h3 {
-  font-size: 1.5rem;
-  margin-bottom: 0.5rem;
-  color: #333;
-}
-
-.empty-state p {
+.empty-illustration {
   margin-bottom: 2rem;
+  position: relative;
+  height: 120px;
+  width: 150px;
 }
 
-.btn-primary {
+.book-stack {
+  position: relative;
+  height: 100%;
+  width: 100%;
+  transform: rotate(-5deg);
+}
+
+.book {
+  position: absolute;
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  transform-origin: left center;
+}
+
+.book-1 {
+  width: 100px;
+  height: 140px;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  bottom: 0;
+  left: 20px;
+  transform: rotate(-10deg);
+  box-shadow: var(--shadow-md);
+}
+
+.book-2 {
+  width: 90px;
+  height: 130px;
+  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+  bottom: 10px;
+  left: 35px;
+  transform: rotate(0deg);
+  box-shadow: var(--shadow-md);
+}
+
+.book-3 {
+  width: 95px;
+  height: 135px;
+  background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+  bottom: 5px;
+  left: 50px;
+  transform: rotate(10deg);
+  box-shadow: var(--shadow-md);
+  animation: float 3s ease-in-out infinite;
+}
+
+.empty-title {
+  font-size: 1.75rem;
+  color: var(--text-primary);
+  margin-bottom: 0.5rem;
+}
+
+.empty-description {
+  font-size: 1rem;
+  color: var(--text-secondary);
+  margin-bottom: 2rem;
+  max-width: 400px;
+}
+
+.btn-upload {
+  background: var(--primary-gradient);
   color: white;
   border: none;
-  padding: 0.75rem 2rem;
-  border-radius: 0.5rem;
+  padding: 0.875rem 2rem;
+  border-radius: var(--radius-lg);
   font-size: 1rem;
+  font-weight: 600;
   cursor: pointer;
-  transition: transform 0.2s, box-shadow 0.2s;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  box-shadow: var(--shadow-md);
 }
 
-.btn-primary:hover {
+.btn-upload:hover {
   transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+  box-shadow: var(--shadow-lg);
 }
 
+/* Books Grid */
 .grid-container {
+  width: 100%;
+}
+
+.books-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
   gap: 2rem;
 }
 
 .book-card {
   background: white;
-  border-radius: 0.75rem;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  border-radius: var(--radius-xl);
   overflow: hidden;
   cursor: pointer;
-  transition: transform 0.2s, box-shadow 0.2s;
   position: relative;
+  box-shadow: var(--shadow-sm);
+  transition: all var(--transition-base);
 }
 
 .book-card:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
+  box-shadow: var(--shadow-xl);
 }
 
+.book-card:hover .book-actions {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* Book Cover */
 .book-cover {
-  width: 100%;
-  height: 280px;
-  background: #f5f5f5;
   position: relative;
+  width: 100%;
+  height: 300px;
+  background: var(--bg-tertiary);
   overflow: hidden;
 }
 
-.book-cover img {
+.cover-image {
   width: 100%;
   height: 100%;
   object-fit: cover;
@@ -200,120 +292,198 @@ const formatFileSize = (bytes) => {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #e6e9f0 0%, #eef1f5 100%);
-  padding: 1rem;
+  padding: 1.5rem;
+  position: relative;
+  background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+}
+
+.placeholder-pattern {
+  position: absolute;
+  inset: 0;
+  opacity: 0.1;
+  background-image: 
+    repeating-linear-gradient(45deg, transparent, transparent 10px, rgba(0,0,0,.05) 10px, rgba(0,0,0,.05) 20px),
+    repeating-linear-gradient(-45deg, transparent, transparent 10px, rgba(0,0,0,.05) 10px, rgba(0,0,0,.05) 20px);
 }
 
 .placeholder-icon {
-  font-size: 3rem;
-  color: #999;
+  color: var(--text-muted);
   margin-bottom: 1rem;
+  opacity: 0.5;
 }
 
-.book-title-placeholder {
+.placeholder-title {
   font-size: 0.875rem;
-  color: #666;
+  color: var(--text-secondary);
   text-align: center;
   overflow: hidden;
   text-overflow: ellipsis;
   display: -webkit-box;
   -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;
+  line-height: 1.4;
 }
 
+.progress-badge {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  padding: 0.375rem 0.75rem;
+  border-radius: var(--radius-full);
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: white;
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+/* Book Info */
 .book-info {
-  padding: 1rem;
+  padding: 1.25rem;
 }
 
 .book-title {
-  font-size: 1rem;
+  font-size: 1.125rem;
   font-weight: 600;
-  margin-bottom: 0.25rem;
+  margin-bottom: 0.375rem;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: #333;
+  color: var(--text-primary);
 }
 
 .book-author {
   font-size: 0.875rem;
-  color: #666;
-  margin-bottom: 0.5rem;
+  color: var(--text-secondary);
+  margin-bottom: 0.75rem;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.book-size {
+.book-meta {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
   font-size: 0.75rem;
-  color: #999;
-  margin-bottom: 1rem;
+  color: var(--text-muted);
+}
+
+.book-size,
+.storage-type {
   display: flex;
   align-items: center;
   gap: 0.25rem;
 }
 
-.storage-indicator {
-  font-size: 0.875rem;
-  opacity: 0.7;
-}
-
+/* Book Actions */
 .book-actions {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: linear-gradient(to top, rgba(0,0,0,0.8) 0%, transparent 100%);
+  padding: 1.5rem 1rem 1rem;
   display: flex;
   gap: 0.5rem;
+  opacity: 0;
+  transform: translateY(10px);
+  transition: all var(--transition-base);
 }
 
-.btn-read,
-.btn-delete {
+.action-btn {
   flex: 1;
-  padding: 0.5rem;
+  padding: 0.625rem;
   border: none;
-  border-radius: 0.375rem;
+  border-radius: var(--radius-md);
   cursor: pointer;
+  font-weight: 600;
+  font-size: 0.875rem;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: background-color 0.2s;
+  gap: 0.375rem;
+  transition: all var(--transition-fast);
 }
 
 .btn-read {
-  background: #667eea;
-  color: white;
+  background: white;
+  color: var(--primary-color);
 }
 
 .btn-read:hover {
-  background: #5a67d8;
+  background: var(--primary-color);
+  color: white;
 }
 
 .btn-delete {
-  background: #f5f5f5;
-  color: #666;
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
 }
 
 .btn-delete:hover {
   background: #ef4444;
-  color: white;
 }
 
-.reading-progress {
-  position: absolute;
-  top: 0.5rem;
-  right: 0.5rem;
-  background: rgba(0, 0, 0, 0.75);
-  color: white;
-  padding: 0.25rem 0.5rem;
-  border-radius: 0.25rem;
-  font-size: 0.75rem;
+/* Transitions */
+.book-list-enter-active,
+.book-list-leave-active {
+  transition: all var(--transition-base);
 }
 
+.book-list-enter-from {
+  opacity: 0;
+  transform: scale(0.8);
+}
+
+.book-list-leave-to {
+  opacity: 0;
+  transform: scale(0.8);
+}
+
+.book-list-move {
+  transition: transform var(--transition-base);
+}
+
+/* Responsive Design */
 @media (max-width: 768px) {
-  .grid-container {
-    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  .books-grid {
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 1.5rem;
+  }
+  
+  .book-cover {
+    height: 240px;
+  }
+  
+  .book-info {
+    padding: 1rem;
+  }
+  
+  .book-title {
+    font-size: 1rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .books-grid {
+    grid-template-columns: repeat(2, 1fr);
     gap: 1rem;
   }
   
   .book-cover {
-    height: 220px;
+    height: 200px;
+  }
+  
+  .empty-state {
+    padding: 3rem 1rem;
+  }
+  
+  .empty-title {
+    font-size: 1.5rem;
   }
 }
 </style>
