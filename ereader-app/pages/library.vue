@@ -78,7 +78,8 @@ const {
   books,
   sortedBooks,
   addBook,
-  removeBook
+  removeBook,
+  getBookFileData
 } = useLibrary()
 
 // Check for upload query param on mount
@@ -121,9 +122,9 @@ const handleSelectBook = (book) => {
   router.push(`/reader/${book.id}`)
 }
 
-const handleDeleteBook = (bookId) => {
+const handleDeleteBook = async (bookId) => {
   if (confirm('Are you sure you want to delete this book from your library?')) {
-    removeBook(bookId)
+    await removeBook(bookId)
   }
 }
 </script>

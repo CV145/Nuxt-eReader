@@ -1,4 +1,5 @@
 import { ref, computed } from 'vue'
+import { saveBookFile, getBookFile, deleteBookFile, isIndexedDBAvailable } from '~/utils/storage/bookStorage'
 
 const books = ref([])
 const isLoading = ref(false)
@@ -40,14 +41,26 @@ export const useLibrary = () => {
       // Extract cover image if available
       let coverImage = null
       if (epubData.parser && epubData.parser.extractCoverImage) {
-        coverImage = await epubData.parser.extractCoverImage()
+        try {
+          coverImage = await epubData.parser.extractCoverImage()
+        } catch (e) {
+          console.warn('Failed to extract cover image:', e)
+        }
+      }
+
+      // Store file data in IndexedDB if available
+      const useIndexedDB = isIndexedDBAvailable() && file.size > 2 * 1024 * 1024 // Use IndexedDB for files > 2MB
+      
+      if (useIndexedDB) {
+        await saveBookFile(bookId, fileData)
       }
 
       const book = {
         id: bookId,
         filename: file.name,
         fileSize: file.size,
-        fileData: fileData,
+        fileData: useIndexedDB ? null : fileData, // Only store in localStorage if small
+        useIndexedDB: useIndexedDB,
         metadata: {
           title: epubData.metadata.title || file.name.replace('.epub', ''),
           author: epubData.metadata.author || 'Unknown Author',
@@ -73,6 +86,11 @@ export const useLibrary = () => {
       )
 
       if (existingIndex > -1) {
+        // Delete old file if stored in IndexedDB
+        const oldBook = books.value[existingIndex]
+        if (oldBook.useIndexedDB) {
+          await deleteBookFile(oldBook.id)
+        }
         // Update existing book
         books.value[existingIndex] = book
       } else {
@@ -91,9 +109,20 @@ export const useLibrary = () => {
     }
   }
 
-  const removeBook = (bookId) => {
+  const removeBook = async (bookId) => {
     const index = books.value.findIndex(b => b.id === bookId)
     if (index > -1) {
+      const book = books.value[index]
+      
+      // Delete from IndexedDB if stored there
+      if (book.useIndexedDB) {
+        try {
+          await deleteBookFile(bookId)
+        } catch (e) {
+          console.error('Failed to delete book file from IndexedDB:', e)
+        }
+      }
+      
       books.value.splice(index, 1)
       saveLibrary()
     }
@@ -113,6 +142,27 @@ export const useLibrary = () => {
 
   const getBook = (bookId) => {
     return books.value.find(b => b.id === bookId)
+  }
+
+  const getBookFileData = async (book) => {
+    if (!book) return null
+    
+    // If file data is stored in IndexedDB, retrieve it
+    if (book.useIndexedDB) {
+      try {
+        const fileData = await getBookFile(book.id)
+        if (!fileData) {
+          throw new Error('Book file not found in IndexedDB')
+        }
+        return fileData
+      } catch (e) {
+        console.error('Failed to retrieve book file:', e)
+        throw e
+      }
+    }
+    
+    // Otherwise, return the file data from the book object
+    return book.fileData
   }
 
   const sortedBooks = computed(() => {
@@ -156,6 +206,7 @@ export const useLibrary = () => {
     addBook,
     removeBook,
     getBook,
+    getBookFileData,
     updateBookProgress,
     loadLibrary,
     saveLibrary

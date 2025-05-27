@@ -36,6 +36,10 @@
           <p class="book-author" :title="book.metadata.author">
             {{ book.metadata.author }}
           </p>
+          <p class="book-size">
+            {{ formatFileSize(book.fileSize) }}
+            <span v-if="book.useIndexedDB" class="storage-indicator" title="Stored in IndexedDB">📦</span>
+          </p>
           
           <div class="book-actions">
             <button 
@@ -97,6 +101,16 @@ const formatDate = (dateString) => {
   } else {
     return date.toLocaleDateString()
   }
+}
+
+const formatFileSize = (bytes) => {
+  if (bytes === 0) return '0 Bytes'
+  
+  const k = 1024
+  const sizes = ['Bytes', 'KB', 'MB', 'GB']
+  const i = Math.floor(Math.log(bytes) / Math.log(k))
+  
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i]
 }
 </script>
 
@@ -224,10 +238,24 @@ const formatDate = (dateString) => {
 .book-author {
   font-size: 0.875rem;
   color: #666;
-  margin-bottom: 1rem;
+  margin-bottom: 0.5rem;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.book-size {
+  font-size: 0.75rem;
+  color: #999;
+  margin-bottom: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.storage-indicator {
+  font-size: 0.875rem;
+  opacity: 0.7;
 }
 
 .book-actions {

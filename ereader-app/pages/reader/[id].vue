@@ -78,6 +78,7 @@ const {
 
 const {
   getBook,
+  getBookFileData,
   updateBookProgress
 } = useLibrary()
 
@@ -95,8 +96,16 @@ onMounted(async () => {
       return
     }
     
+    // Get file data (from localStorage or IndexedDB)
+    const fileData = await getBookFileData(book)
+    if (!fileData) {
+      loadError.value = 'Book file not found'
+      isLoadingBook.value = false
+      return
+    }
+    
     // Convert base64 back to file
-    const response = await fetch(book.fileData)
+    const response = await fetch(fileData)
     const blob = await response.blob()
     const file = new File([blob], book.filename, { type: 'application/epub+zip' })
     
