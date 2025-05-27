@@ -177,6 +177,7 @@ export const useEpubReader = () => {
 
   return {
     // State
+    parser: computed(() => parser.value),
     isLoading,
     error,
     metadata,

@@ -8,6 +8,11 @@
       </div>
       
       <div class="reader-controls">
+        <button @click="$emit('back-to-library')" class="control-btn">
+          <Icon name="home" />
+          Library
+        </button>
+        
         <button 
           @click="toggleParagraphNumbers" 
           class="control-btn"
@@ -125,6 +130,7 @@
 
 <script setup>
 import { ref, computed } from 'vue'
+import { useRoute } from 'vue-router'
 import { useEpubReader } from '~/composables/useEpubReader'
 import { useNotebook } from '~/composables/useNotebook'
 import Icon from '~/components/ui/Icon.vue'
@@ -137,7 +143,7 @@ defineProps({
 })
 
 // Emits
-defineEmits(['showToc'])
+defineEmits(['showToc', 'back-to-library'])
 
 // Use the EPUB reader composable
 const {
@@ -163,7 +169,8 @@ const selectedText = ref('')
 const selectedParagraphNumber = ref(null)
 const { addToNotebook } = useNotebook()
 
-const bookId = computed(() => metadata.value?.identifier || metadata.value?.title || 'unknown-book')
+const route = useRoute()
+const bookId = computed(() => route.params.id || metadata.value?.identifier || metadata.value?.title || 'unknown-book')
 
 function handleSelection() {
   const sel = window.getSelection()

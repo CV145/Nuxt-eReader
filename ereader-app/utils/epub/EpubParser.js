@@ -181,7 +181,8 @@ export class EpubParser {
         id,
         href,
         mediaType,
-        properties: item.$.properties || ''
+        properties: item.$.properties || '',
+        originalHref: item.$.href
       }
     })
   }
@@ -414,6 +415,35 @@ export class EpubParser {
     }
     
     return baseSegments.join('/')
+  }
+
+  /**
+   * Extract cover image as base64 data URL
+   */
+  async extractCoverImage() {
+    if (!this.metadata.cover || !this.manifest) return null
+    
+    try {
+      const coverId = this.metadata.cover
+      const coverItem = Object.values(this.manifest).find(item => 
+        item.id === coverId || 
+        item.properties.includes('cover-image') ||
+        (item.mediaType && item.mediaType.startsWith('image/'))
+      )
+      
+      if (!coverItem) return null
+      
+      const coverFile = this.zip.file(coverItem.href)
+      if (!coverFile) return null
+      
+      const coverData = await coverFile.async('base64')
+      const mimeType = coverItem.mediaType || 'image/jpeg'
+      
+      return `data:${mimeType};base64,${coverData}`
+    } catch (error) {
+      console.error('Failed to extract cover image:', error)
+      return null
+    }
   }
 
   /**
