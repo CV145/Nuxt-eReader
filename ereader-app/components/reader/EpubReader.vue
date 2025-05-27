@@ -5,19 +5,25 @@
       <div class="header-container">
         <div class="book-info">
           <h1 v-if="metadata.title" class="book-title">{{ metadata.title }}</h1>
-          <p v-if="metadata.author" class="book-author">{{ metadata.author }}</p>
+          <p v-if="metadata.author" class="book-author">
+            {{ metadata.author }}
+          </p>
         </div>
-        
+
         <div class="reader-controls">
-          <button @click="$emit('back-to-library')" class="control-btn" title="Back to Library">
+          <button
+            @click="$emit('back-to-library')"
+            class="control-btn"
+            title="Back to Library"
+          >
             <Icon name="home" :size="20" />
             <span class="control-text">Library</span>
           </button>
-          
+
           <div class="control-separator"></div>
-          
-          <button 
-            @click="toggleParagraphNumbers" 
+
+          <button
+            @click="toggleParagraphNumbers"
             class="control-btn"
             :class="{ active: showParagraphNumbers }"
             title="Toggle Paragraph Numbers"
@@ -25,21 +31,34 @@
             <Icon name="hash" :size="20" />
             <span class="control-text">Paragraphs</span>
           </button>
-          
-          <button @click="$emit('showToc')" class="control-btn" title="Table of Contents">
+
+          <button
+            @click="$emit('showToc')"
+            class="control-btn"
+            title="Table of Contents"
+          >
             <Icon name="list" :size="20" />
             <span class="control-text">Contents</span>
           </button>
-          
-          <button @click="showNotebook = true" class="control-btn" title="Open Notebook">
+
+          <button
+            @click="showNotebook = true"
+            class="control-btn"
+            title="Open Notebook"
+          >
             <Icon name="edit" :size="20" />
             <span class="control-text">Notes</span>
           </button>
-          
-          <!-- Debug button -->
-          <button @click="testScroll" class="control-btn" title="Test Scroll">
-            <Icon name="arrow-down" :size="20" />
-            <span class="control-text">Test</span>
+
+          <button
+            @click="showBookmarks = true"
+            class="control-btn"
+            title="View Bookmarks"
+            :class="{ 'has-bookmarks': bookmarkCount > 0 }"
+          >
+            <Icon name="bookmark-fill" :size="20" />
+            <span class="control-text">Bookmarks</span>
+            <span v-if="bookmarkCount > 0" class="bookmark-badge">{{ bookmarkCount }}</span>
           </button>
         </div>
       </div>
@@ -48,8 +67,8 @@
     <!-- Chapter Progress -->
     <div class="chapter-progress">
       <div class="progress-bar">
-        <div 
-          class="progress-fill" 
+        <div
+          class="progress-fill"
           :style="{ width: progressPercentage + '%' }"
         ></div>
       </div>
@@ -67,8 +86,8 @@
     <div class="content-container">
       <!-- Chapter Navigation -->
       <nav class="chapter-nav nav-prev">
-        <button 
-          @click="previousChapter" 
+        <button
+          @click="previousChapter"
           :disabled="!hasPreviousChapter || isLoading"
           class="nav-btn hover-lift"
           :class="{ disabled: !hasPreviousChapter || isLoading }"
@@ -79,7 +98,7 @@
 
       <!-- Chapter Content -->
       <main ref="contentWrapper" class="chapter-content-wrapper">
-        <article 
+        <article
           class="chapter-content"
           @mouseup="handleSelection"
           @touchend="handleSelection"
@@ -88,13 +107,13 @@
           <h2 v-if="currentChapter?.title" class="chapter-title">
             {{ currentChapter.title }}
           </h2>
-          
+
           <!-- Loading State -->
           <div v-if="isLoading" class="loading-state">
             <div class="loading-spinner"></div>
             <p>Loading chapter...</p>
           </div>
-          
+
           <!-- Error State -->
           <div v-else-if="error" class="error-state">
             <Icon name="alert-circle" :size="48" />
@@ -104,14 +123,15 @@
               Try Again
             </button>
           </div>
-          
+
           <!-- Chapter Content -->
-          <div 
-            v-else-if="processedChapterContent" 
-            class="chapter-html"
+          <div
+            v-else-if="processedChapterContent"
+            class="chapter-html ereader-content"
             v-html="processedChapterContent"
+            @contextmenu="handleContextMenu"
           ></div>
-          
+
           <!-- Empty Chapter -->
           <div v-else class="empty-state">
             <Icon name="book-open" :size="48" />
@@ -122,8 +142,8 @@
 
       <!-- Chapter Navigation -->
       <nav class="chapter-nav nav-next">
-        <button 
-          @click="nextChapter" 
+        <button
+          @click="nextChapter"
           :disabled="!hasNextChapter || isLoading"
           class="nav-btn hover-lift"
           :class="{ disabled: !hasNextChapter || isLoading }"
@@ -132,13 +152,20 @@
         </button>
       </nav>
     </div>
-    
+
     <!-- Chapter Styles -->
-    <component 
-      :is="'style'" 
-      v-if="currentChapter?.content?.styles"
-    >
+    <component :is="'style'" v-if="currentChapter?.content?.styles">
       {{ currentChapter.content.styles }}
+    </component>
+
+    <!-- Override Styles - Must come after EPUB styles -->
+    <component :is="'style'">
+      .epub-reader .chapter-content .ereader-content p {
+        margin-bottom: 2.5rem !important;
+        margin-top: 0 !important;
+        padding-bottom: 1.5rem !important;
+        border-bottom: 1px solid #e0e0e0 !important;
+      }
     </component>
 
     <!-- Notebook Sidebar -->
@@ -147,7 +174,15 @@
       :is-open="showNotebook"
       @close="showNotebook = false"
     />
-    
+
+    <!-- Bookmarks List -->
+    <BookmarksList
+      :book-id="bookId"
+      :is-open="showBookmarks"
+      @close="showBookmarks = false"
+      @navigate-to-bookmark="navigateToBookmark"
+    />
+
     <!-- Note Add Modal -->
     <NoteAddModal
       :show="showNoteModal"
@@ -161,22 +196,25 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
-import { useRoute } from 'vue-router'
-import { useEpubReader } from '~/composables/useEpubReader'
-import { useNotebook } from '~/composables/useNotebook'
-import { useLibrary } from '~/composables/useLibrary'
-import Icon from '~/components/ui/Icon.vue'
-import NotebookSidebar from '~/components/NotebookSidebar.vue'
-import NoteAddModal from '~/components/notes/NoteAddModal.vue'
+import { ref, computed, onMounted, onUnmounted, watch, nextTick } from "vue";
+import { useRoute } from "vue-router";
+import { useEpubReader } from "~/composables/useEpubReader";
+import { useNotebook } from "~/composables/useNotebook";
+import { useLibrary } from "~/composables/useLibrary";
+import { useBookmarks } from "~/composables/useBookmarks";
+import Icon from "~/components/ui/Icon.vue";
+import NotebookSidebar from "~/components/NotebookSidebar.vue";
+import NoteAddModal from "~/components/notes/NoteAddModal.vue";
+import BookmarkIcon from "~/components/reader/BookmarkIcon.vue";
+import BookmarksList from "~/components/reader/BookmarksList.vue";
 
 // Props
 defineProps({
   // Add any props if needed
-})
+});
 
 // Emits
-defineEmits(['showToc', 'back-to-library'])
+defineEmits(["showToc", "back-to-library"]);
 
 // Use the EPUB reader composable
 const {
@@ -192,438 +230,376 @@ const {
   processedChapterContent,
   nextChapter,
   previousChapter,
-  toggleParagraphNumbers
-} = useEpubReader()
+  toggleParagraphNumbers,
+  goToChapter,
+} = useEpubReader();
 
 // Notebook logic
-const showNotebook = ref(false)
-const showNoteModal = ref(false)
-const selectedText = ref('')
-const selectedParagraphNumber = ref(null)
-const { addToNotebook } = useNotebook()
+const showNotebook = ref(false);
+const showNoteModal = ref(false);
+const selectedText = ref("");
+const selectedParagraphNumber = ref(null);
+const { addToNotebook } = useNotebook();
+
+// Bookmark logic
+const {
+  setCurrentBook,
+  toggleBookmark,
+  isLocationBookmarked,
+  currentBookBookmarks,
+  getChapterBookmarks,
+  bookmarkCount
+} = useBookmarks();
+const hoveredParagraph = ref(null);
+const bookmarkElements = ref(new Map());
+const showBookmarks = ref(false);
 
 // Library for progress tracking
-const { updateBookProgress, getBook } = useLibrary()
+const { updateBookProgress, getBook } = useLibrary();
 
-const route = useRoute()
-const bookId = computed(() => route.params.id || metadata.value?.identifier || metadata.value?.title || 'unknown-book')
+const route = useRoute();
+const bookId = computed(
+  () =>
+    route.params.id ||
+    metadata.value?.identifier ||
+    metadata.value?.title ||
+    "unknown-book"
+);
 
 // Scroll tracking
-let scrollTimeout = null
-const lastScrollPosition = ref(0)
-const contentWrapper = ref(null)
+let scrollTimeout = null;
+const lastScrollPosition = ref(0);
+const contentWrapper = ref(null);
+const hasRestoredScroll = ref(false);
 
 const saveScrollPosition = () => {
-  if (bookId.value && bookId.value !== 'unknown-book' && lastScrollPosition.value >= 0) {
-    console.log('Saving scroll position:', lastScrollPosition.value)
-    updateBookProgress(bookId.value, currentChapterIndex.value, lastScrollPosition.value)
+  if (
+    bookId.value &&
+    bookId.value !== "unknown-book" &&
+    lastScrollPosition.value >= 0
+  ) {
+    console.log(
+      "Saving scroll position:",
+      lastScrollPosition.value,
+      "for chapter:",
+      currentChapterIndex.value
+    );
+    updateBookProgress(
+      bookId.value,
+      currentChapterIndex.value,
+      lastScrollPosition.value
+    );
   }
-}
+};
 
 const trackScrollPosition = () => {
   if (contentWrapper.value) {
-    lastScrollPosition.value = contentWrapper.value.scrollTop
-    
+    lastScrollPosition.value = contentWrapper.value.scrollTop;
+
     // Debounce saving to avoid too many updates
-    clearTimeout(scrollTimeout)
-    scrollTimeout = setTimeout(saveScrollPosition, 1000) // Save after 1 second of no scrolling
+    clearTimeout(scrollTimeout);
+    scrollTimeout = setTimeout(saveScrollPosition, 1000); // Save after 1 second of no scrolling
   }
-}
+};
 
 // Computed properties
 const progressPercentage = computed(() => {
-  if (totalChapters.value === 0) return 0
-  return ((currentChapterIndex.value + 1) / totalChapters.value) * 100
-})
+  if (totalChapters.value === 0) return 0;
+  return ((currentChapterIndex.value + 1) / totalChapters.value) * 100;
+});
 
 const estimatedReadingTime = computed(() => {
   // Rough estimation: 250 words per minute
-  if (!processedChapterContent.value) return 0
-  const text = processedChapterContent.value.replace(/<[^>]*>/g, '')
-  const wordCount = text.split(/\s+/).length
-  const remainingChapters = totalChapters.value - currentChapterIndex.value - 1
-  const avgWordsPerChapter = wordCount // Simplified for now
-  const totalRemainingWords = avgWordsPerChapter * remainingChapters
-  return Math.ceil(totalRemainingWords / 250)
-})
+  if (!processedChapterContent.value) return 0;
+  const text = processedChapterContent.value.replace(/<[^>]*>/g, "");
+  const wordCount = text.split(/\s+/).length;
+  const remainingChapters = totalChapters.value - currentChapterIndex.value - 1;
+  const avgWordsPerChapter = wordCount; // Simplified for now
+  const totalRemainingWords = avgWordsPerChapter * remainingChapters;
+  return Math.ceil(totalRemainingWords / 250);
+});
 
 function handleSelection() {
-  const sel = window.getSelection()
-  if (!sel || sel.isCollapsed) return
-  const text = sel.toString().trim()
-  if (!text) return
+  const sel = window.getSelection();
+  if (!sel || sel.isCollapsed) return;
+  const text = sel.toString().trim();
+  if (!text) return;
 
   // find paragraph element
-  let node = sel.anchorNode
-  if (node && node.nodeType === 3) node = node.parentElement // text node -> parent
-  const para = node?.closest('p')
-  if (!para) return
-  const paraNumAttr = para.getAttribute('data-paragraph-number')
-  const paraNum = paraNumAttr ? parseInt(paraNumAttr) : null
+  let node = sel.anchorNode;
+  if (node && node.nodeType === 3) node = node.parentElement; // text node -> parent
+  const para = node?.closest("p");
+  if (!para) return;
+  const paraNumAttr = para.getAttribute("data-paragraph-number");
+  const paraNum = paraNumAttr ? parseInt(paraNumAttr) : null;
 
   // Store selection data and show modal
-  selectedText.value = text
-  selectedParagraphNumber.value = paraNum
-  showNoteModal.value = true
+  selectedText.value = text;
+  selectedParagraphNumber.value = paraNum;
+  showNoteModal.value = true;
 }
 
 function addNoteToNotebook(note) {
-  const citation = `Chapter: ${currentChapter.value?.title || 'Unknown'}${
-    selectedParagraphNumber.value ? `, Paragraph ${selectedParagraphNumber.value}` : ''
-  }`
-  
-  const fullNote = `${note.content}\n\n---\n📖 ${citation}\n💭 "${selectedText.value}"`
-  
-  addToNotebook(bookId.value, fullNote)
-  showNoteModal.value = false
-  clearSelection()
+  const citation = `Chapter: ${currentChapter.value?.title || "Unknown"}${
+    selectedParagraphNumber.value
+      ? `, Paragraph ${selectedParagraphNumber.value}`
+      : ""
+  }`;
+
+  const fullNote = `${note.content}\n\n---\n📖 ${citation}\n💭 "${selectedText.value}"`;
+
+  addToNotebook(bookId.value, fullNote);
+  showNoteModal.value = false;
+  clearSelection();
 }
 
 function cancelNoteAdd() {
-  showNoteModal.value = false
-  clearSelection()
+  showNoteModal.value = false;
+  clearSelection();
 }
 
 function clearSelection() {
-  selectedText.value = ''
-  selectedParagraphNumber.value = null
-  window.getSelection()?.removeAllRanges()
+  selectedText.value = "";
+  selectedParagraphNumber.value = null;
+  window.getSelection()?.removeAllRanges();
 }
 
-// Debug function to test scrolling
-const testScroll = () => {
-  const wrapper = document.querySelector('.chapter-content-wrapper')
-  console.log('Test scroll - wrapper found:', !!wrapper)
+// Bookmark methods
+function handleBookmarkClick(paragraphNumber) {
+  const paragraph = document.querySelector(`p[data-paragraph-number="${paragraphNumber}"]`);
+  const paragraphText = paragraph?.textContent?.trim().substring(0, 200) || '';
   
-  if (wrapper) {
-    const currentScroll = wrapper.scrollTop
-    const scrollHeight = wrapper.scrollHeight
-    const clientHeight = wrapper.clientHeight
-    const maxScroll = scrollHeight - clientHeight
-    
-    console.log('Scroll info:', {
-      currentScroll,
-      scrollHeight,
-      clientHeight,
-      maxScroll,
-      isScrollable: maxScroll > 0
-    })
-    
-    if (maxScroll > 0) {
-      const targetScroll = Math.min(500, maxScroll)
-      console.log('Scrolling to:', targetScroll)
-      wrapper.scrollTop = targetScroll
-      
-      setTimeout(() => {
-        console.log('Scroll result:', wrapper.scrollTop)
-      }, 100)
-    }
+  toggleBookmark({
+    chapterIndex: currentChapterIndex.value,
+    chapterTitle: currentChapter.value?.title || 'Chapter ' + (currentChapterIndex.value + 1),
+    paragraphNumber: paragraphNumber,
+    paragraphText: paragraphText
+  });
+}
+
+function handleContextMenu(event) {
+  event.preventDefault();
+  const paragraph = event.target.closest('p[data-paragraph-number]');
+  if (paragraph) {
+    const paragraphNumber = parseInt(paragraph.getAttribute('data-paragraph-number'));
+    handleBookmarkClick(paragraphNumber);
   }
+}
+
+// Check if paragraph is bookmarked (for dynamic rendering)
+function isParagraphBookmarked(paragraphNumber) {
+  return isLocationBookmarked(currentChapterIndex.value, paragraphNumber);
+}
+
+// Navigate to a bookmark
+async function navigateToBookmark(bookmark) {
+  // Navigate to the chapter if different
+  if (bookmark.chapterIndex !== currentChapterIndex.value) {
+    await goToChapter(bookmark.chapterIndex);
+  }
+  
+  // Wait for content to load
+  await nextTick();
+  setTimeout(() => {
+    // Find and scroll to the paragraph
+    const paragraph = document.querySelector(`p[data-paragraph-number="${bookmark.paragraphNumber}"]`);
+    if (paragraph) {
+      paragraph.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      // Highlight briefly
+      paragraph.style.backgroundColor = 'rgba(99, 102, 241, 0.2)';
+      setTimeout(() => {
+        paragraph.style.backgroundColor = '';
+      }, 2000);
+    }
+  }, 300);
 }
 
 // Save before page unload (refresh/close)
 const handleBeforeUnload = () => {
-  // Cancel any pending saves
-  clearTimeout(scrollTimeout)
-  // Save immediately
-  saveScrollPosition()
-}
+  clearTimeout(scrollTimeout);
+  saveScrollPosition();
+};
+
+// Restore scroll position when content is ready
+const restoreScrollPosition = async () => {
+  if (hasRestoredScroll.value) return;
+
+  const book = getBook(bookId.value);
+  const savedPosition = book?.readingProgress?.scrollPosition || 0;
+
+  if (
+    savedPosition > 0 &&
+    book?.readingProgress?.currentChapter === currentChapterIndex.value
+  ) {
+    console.log(
+      "Attempting to restore scroll position:",
+      savedPosition,
+      "for chapter:",
+      currentChapterIndex.value
+    );
+
+    // Wait for DOM to update
+    await nextTick();
+
+    // Give more time for content to render
+    setTimeout(() => {
+      const wrapper =
+        contentWrapper.value ||
+        document.querySelector(".chapter-content-wrapper");
+      if (wrapper) {
+        const scrollHeight = wrapper.scrollHeight;
+        const clientHeight = wrapper.clientHeight;
+
+        console.log("Scroll dimensions:", {
+          scrollHeight,
+          clientHeight,
+          savedPosition,
+        });
+
+        // Only restore if content is scrollable
+        if (scrollHeight > clientHeight) {
+          const maxScroll = scrollHeight - clientHeight;
+          const targetScroll = Math.min(savedPosition, maxScroll);
+          console.log("Restoring scroll to:", targetScroll);
+          wrapper.scrollTop = targetScroll;
+          lastScrollPosition.value = targetScroll;
+          hasRestoredScroll.value = true;
+        } else {
+          console.log("Content not yet scrollable, will retry");
+        }
+      } else {
+        console.log("Wrapper not found");
+      }
+    }, 300); // Give content time to fully render
+  } else {
+    console.log("No scroll position to restore or wrong chapter");
+  }
+};
 
 // Lifecycle hooks
 onMounted(() => {
+  // Initialize bookmarks for current book
+  if (bookId.value && bookId.value !== "unknown-book") {
+    setCurrentBook(bookId.value);
+  }
+
   // Add beforeunload listener for page refresh
-  window.addEventListener('beforeunload', handleBeforeUnload)
-  
+  window.addEventListener("beforeunload", handleBeforeUnload);
+
   // Setup scroll tracking after DOM is ready
-  const setupScrollTracking = () => {
+  nextTick(() => {
     if (contentWrapper.value) {
-      contentWrapper.value.addEventListener('scroll', trackScrollPosition)
-      console.log('Scroll listener attached to ref')
-      return true
+      contentWrapper.value.addEventListener("scroll", trackScrollPosition);
     }
-    // Fallback to querySelector if ref not ready
-    const wrapper = document.querySelector('.chapter-content-wrapper')
-    if (wrapper) {
-      contentWrapper.value = wrapper
-      wrapper.addEventListener('scroll', trackScrollPosition)
-      console.log('Scroll listener attached via querySelector')
-      return true
-    }
-    return false
-  }
-  
-  // Try to set up scroll tracking immediately and with delays
-  if (!setupScrollTracking()) {
-    nextTick(() => {
-      if (!setupScrollTracking()) {
-        setTimeout(setupScrollTracking, 100)
-      }
-    })
-  }
-  
-  // Restore scroll position if available
-  const book = getBook(bookId.value)
-  if (book?.readingProgress?.scrollPosition > 0 && book?.readingProgress?.currentChapter === currentChapterIndex.value) {
-    console.log('Found saved scroll position on mount:', book.readingProgress.scrollPosition)
-    // Store it for restoration after content loads
-    window.__savedScrollPosition = book.readingProgress.scrollPosition
-    
-    // If content is already loaded, restore immediately
+  });
+
+  // Try to restore scroll position if content is already loaded
+  setTimeout(() => {
     if (processedChapterContent.value && !hasRestoredScroll.value) {
-      console.log('Content already loaded, restoring scroll immediately')
-      hasRestoredScroll.value = true
-      
-      // Wait a bit for DOM to settle
-      setTimeout(() => {
-        const wrapper = document.querySelector('.chapter-content-wrapper')
-        if (wrapper && book.readingProgress.scrollPosition > 0) {
-          const targetScroll = book.readingProgress.scrollPosition
-          console.log('Immediate scroll restoration to:', targetScroll)
-          wrapper.scrollTop = targetScroll
-          lastScrollPosition.value = targetScroll
-          
-          // Verify after a moment
-          setTimeout(() => {
-            console.log('Immediate scroll verification:', {
-              target: targetScroll,
-              actual: wrapper.scrollTop
-            })
-          }, 100)
-        }
-      }, 300)
+      restoreScrollPosition();
     }
-  }
-})
+  }, 500);
+});
 
 onUnmounted(() => {
   // Remove listeners
   if (contentWrapper.value) {
-    contentWrapper.value.removeEventListener('scroll', trackScrollPosition)
+    contentWrapper.value.removeEventListener("scroll", trackScrollPosition);
   }
-  window.removeEventListener('beforeunload', handleBeforeUnload)
-  
+  window.removeEventListener("beforeunload", handleBeforeUnload);
+
   // Clear timeout and save final position
-  clearTimeout(scrollTimeout)
-  saveScrollPosition()
-})
+  clearTimeout(scrollTimeout);
+  saveScrollPosition();
+});
 
 // Watch for chapter changes to save progress
 watch(currentChapterIndex, (newIndex, oldIndex) => {
-  if (oldIndex !== undefined && bookId.value && bookId.value !== 'unknown-book') {
+  if (
+    oldIndex !== undefined &&
+    bookId.value &&
+    bookId.value !== "unknown-book"
+  ) {
     // Save progress when changing chapters
-    updateBookProgress(bookId.value, newIndex, 0)
+    updateBookProgress(bookId.value, newIndex, 0);
   }
-  
+
   // Reset scroll position for new chapter
-  lastScrollPosition.value = 0
-  hasRestoredScroll.value = false
-  
-  // Scroll tracking will be re-initialized by the ref
-})
+  lastScrollPosition.value = 0;
+  hasRestoredScroll.value = false;
+});
 
-// Flag to track if we've already restored scroll for this session
-const hasRestoredScroll = ref(false)
-
-// Watch contentWrapper ref to ensure scroll tracking is set up
-watch(contentWrapper, (newWrapper, oldWrapper) => {
-  if (newWrapper && !oldWrapper) {
-    console.log('ContentWrapper ref is now available')
-    // Ensure scroll listener is attached
-    if (!newWrapper._scrollListenerAttached) {
-      newWrapper.addEventListener('scroll', trackScrollPosition)
-      newWrapper._scrollListenerAttached = true
-      console.log('Scroll listener attached via ref watch')
-    }
+// Watch for bookId changes to update bookmark context
+watch(bookId, (newBookId) => {
+  if (newBookId && newBookId !== "unknown-book") {
+    setCurrentBook(newBookId);
   }
-})
+});
 
-// Watch for chapter content changes to handle initial load and restoration
+// Watch for chapter content changes to restore scroll position and setup bookmarks
 watch(
   () => processedChapterContent.value,
   async (newContent) => {
-    console.log('ProcessedChapterContent changed, hasRestoredScroll:', hasRestoredScroll.value)
-    if (newContent && !hasRestoredScroll.value) {
-    // Wait for DOM to update
-    await nextTick()
-    
-    // Get saved scroll position from various sources
-    let savedScrollPosition = window.__savedScrollPosition || 0
-    
-    // If no position in window, check library state
-    if (savedScrollPosition === 0) {
-      const book = getBook(bookId.value)
-      console.log('Checking book for saved position:', {
-        bookId: bookId.value,
-        book: book,
-        readingProgress: book?.readingProgress,
-        currentChapter: currentChapterIndex.value
-      })
-      if (book?.readingProgress?.currentChapter === currentChapterIndex.value) {
-        savedScrollPosition = book.readingProgress.scrollPosition || 0
-      }
+    if (newContent) {
+      await restoreScrollPosition();
+      // Setup bookmark click handlers and update bookmark states
+      await nextTick();
+      setupBookmarkHandlers();
     }
-    
-    console.log('Saved scroll position sources:', {
-      fromWindow: window.__savedScrollPosition,
-      fromLibrary: savedScrollPosition,
-      willRestore: savedScrollPosition > 0
-    })
-    
-    if (savedScrollPosition > 0) {
-      console.log('Attempting to restore scroll position:', savedScrollPosition)
-      hasRestoredScroll.value = true
-      
-      // Multiple attempts to restore scroll position
-      let attemptCount = 0
-      const maxAttempts = 15
-      
-      const attemptScrollRestore = () => {
-        attemptCount++
-        
-        // Try to get content wrapper if not already available
-        if (!contentWrapper.value) {
-          const wrapper = document.querySelector('.chapter-content-wrapper')
-          if (wrapper) {
-            contentWrapper.value = wrapper
-            console.log(`Scroll restore attempt ${attemptCount}: Found content wrapper via querySelector`)
-          } else {
-            console.log(`Scroll restore attempt ${attemptCount}: No content wrapper yet`)
-            if (attemptCount < maxAttempts) {
-              setTimeout(attemptScrollRestore, 100 * attemptCount)
-            }
-            return
-          }
-        }
-        
-        const scrollHeight = contentWrapper.value.scrollHeight
-        const clientHeight = contentWrapper.value.clientHeight
-        const maxScroll = scrollHeight - clientHeight
-        
-        console.log(`Scroll restore attempt ${attemptCount}:`, {
-          savedPosition: savedScrollPosition,
-          scrollHeight,
-          clientHeight,
-          maxScroll,
-          currentScroll: contentWrapper.value.scrollTop
-        })
-        
-        // Check if content is scrollable
-        if (scrollHeight <= clientHeight || maxScroll <= 0) {
-          console.log('Content not yet scrollable, retrying...')
-          if (attemptCount < maxAttempts) {
-            setTimeout(attemptScrollRestore, 200 * attemptCount)
-          }
-          return
-        }
-        
-        // Calculate target scroll position
-        const targetScroll = Math.min(savedScrollPosition, maxScroll)
-        
-        // Apply scroll position using multiple methods
-        console.log('Applying scroll position:', targetScroll)
-        contentWrapper.value.scrollTop = targetScroll
-        
-        // Force a reflow to ensure the scroll is applied
-        void contentWrapper.value.offsetHeight
-        
-        // Also try scrollTo method
-        if (contentWrapper.value.scrollTo) {
-          contentWrapper.value.scrollTo({
-            top: targetScroll,
-            left: 0,
-            behavior: 'instant'
-          })
-        }
-        
-        // Try setting scrollTop again after a microtask
-        Promise.resolve().then(() => {
-          if (contentWrapper.value) {
-            contentWrapper.value.scrollTop = targetScroll
-          }
-        })
-        
-        // Verify scroll was applied
-        setTimeout(() => {
-          if (contentWrapper.value) {
-            const actualScroll = contentWrapper.value.scrollTop
-            const diff = Math.abs(actualScroll - targetScroll)
-            
-            console.log('Scroll verification:', {
-              target: targetScroll,
-              actual: actualScroll,
-              difference: diff
-            })
-            
-            if (diff > 10 && attemptCount < maxAttempts) {
-              // Try again if scroll didn't work
-              setTimeout(attemptScrollRestore, 300)
-            } else {
-              // Success or max attempts reached
-              lastScrollPosition.value = actualScroll
-              console.log('Scroll restoration complete at position:', actualScroll)
-              
-              // Clear saved position
-              if (window.__savedScrollPosition) {
-                delete window.__savedScrollPosition
-              }
-              
-              // Handle late-loading images
-              const images = contentWrapper.value.querySelectorAll('img')
-              if (images.length > 0) {
-                let imagesLoaded = 0
-                const checkAllImagesLoaded = () => {
-                  imagesLoaded++
-                  if (imagesLoaded === images.length) {
-                    // Re-apply scroll after all images load
-                    setTimeout(() => {
-                      if (contentWrapper.value) {
-                        const newMaxScroll = contentWrapper.value.scrollHeight - contentWrapper.value.clientHeight
-                        const newTarget = Math.min(savedScrollPosition, newMaxScroll)
-                        contentWrapper.value.scrollTop = newTarget
-                        console.log('Re-applied scroll after images loaded')
-                      }
-                    }, 100)
-                  }
-                }
-                
-                images.forEach(img => {
-                  if (img.complete) {
-                    checkAllImagesLoaded()
-                  } else {
-                    img.addEventListener('load', checkAllImagesLoaded, { once: true })
-                    img.addEventListener('error', checkAllImagesLoaded, { once: true })
-                  }
-                })
-              }
-            }
-          }
-        }, 100)
-      }
-      
-      // Start restoration attempts after a short delay
-      setTimeout(attemptScrollRestore, 200)
-      
-      // Also try a direct approach after content is definitely rendered
-      setTimeout(() => {
-        const wrapper = document.querySelector('.chapter-content-wrapper')
-        if (wrapper && savedScrollPosition > 0) {
-          console.log('Direct scroll attempt after 1s delay')
-          wrapper.scrollTop = savedScrollPosition
-          
-          // Verify it worked
-          setTimeout(() => {
-            console.log('Direct scroll verification:', {
-              target: savedScrollPosition,
-              actual: wrapper.scrollTop
-            })
-          }, 100)
-        }
-      }, 1000)
-    }
-  }
-},
+  },
   { immediate: true }
-)
+);
+
+// Watch for bookmark changes to update paragraph classes
+watch(
+  () => currentBookBookmarks.value,
+  () => {
+    updateBookmarkClasses();
+  },
+  { deep: true }
+);
+
+// Setup bookmark handlers
+function setupBookmarkHandlers() {
+  const paragraphs = document.querySelectorAll('.ereader-content p[data-paragraph-number]');
+  
+  paragraphs.forEach(p => {
+    const paragraphNumber = parseInt(p.getAttribute('data-paragraph-number'));
+    
+    // Update bookmark class
+    if (isParagraphBookmarked(paragraphNumber)) {
+      p.classList.add('bookmarked');
+    } else {
+      p.classList.remove('bookmarked');
+    }
+    
+    // Add click handler to pseudo-element area
+    p.addEventListener('click', (e) => {
+      // Check if click is on the bookmark icon area (right side)
+      const rect = p.getBoundingClientRect();
+      const clickX = e.clientX - rect.left;
+      if (clickX > rect.width - 60) { // 60px from right edge
+        e.preventDefault();
+        e.stopPropagation();
+        handleBookmarkClick(paragraphNumber);
+      }
+    });
+  });
+}
+
+// Update bookmark classes for all paragraphs
+function updateBookmarkClasses() {
+  const paragraphs = document.querySelectorAll('.ereader-content p[data-paragraph-number]');
+  
+  paragraphs.forEach(p => {
+    const paragraphNumber = parseInt(p.getAttribute('data-paragraph-number'));
+    if (isParagraphBookmarked(paragraphNumber)) {
+      p.classList.add('bookmarked');
+    } else {
+      p.classList.remove('bookmarked');
+    }
+  });
+}
 </script>
 
 <style scoped>
@@ -708,6 +684,28 @@ watch(
   background: white;
   color: var(--primary-color);
   border-color: white;
+}
+
+.control-btn.has-bookmarks {
+  position: relative;
+}
+
+.bookmark-badge {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  background: #ef4444;
+  color: white;
+  font-size: 0.625rem;
+  font-weight: 700;
+  min-width: 18px;
+  height: 18px;
+  border-radius: var(--radius-full);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 4px;
+  border: 2px solid var(--primary-color);
 }
 
 .control-text {
@@ -832,10 +830,70 @@ watch(
   animation: fadeIn 0.3s ease-out;
 }
 
-.chapter-html p {
-  margin: 0 0 1.5rem 0;
+/* Force paragraph spacing with maximum specificity */
+.epub-reader .chapter-content .ereader-content p {
+  margin-bottom: 2.5rem !important;
+  margin-top: 0 !important;
+  padding-bottom: 1.5rem !important;
   text-align: justify;
   position: relative;
+  border-bottom: 1px solid #e0e0e0 !important;
+  transition: background-color var(--transition-fast);
+}
+
+/* Override any EPUB inline styles */
+.epub-reader .chapter-content .ereader-content p[style] {
+  margin-bottom: 2.5rem !important;
+  margin-top: 0 !important;
+  padding-bottom: 1.5rem !important;
+  border-bottom: 1px solid #e0e0e0 !important;
+}
+
+/* Handle nested paragraphs */
+.epub-reader .chapter-content .ereader-content div p,
+.epub-reader .chapter-content .ereader-content blockquote p,
+.epub-reader .chapter-content .ereader-content li p {
+  margin-bottom: 2.5rem !important;
+  margin-top: 0 !important;
+  padding-bottom: 1.5rem !important;
+  border-bottom: 1px solid #e0e0e0 !important;
+}
+
+/* Remove bottom border from last paragraph */
+.epub-reader .chapter-content .ereader-content p:last-child {
+  border-bottom: none !important;
+}
+
+/* Paragraph hover state with bookmark icon */
+.epub-reader .chapter-content .ereader-content p[data-paragraph-number] {
+  position: relative;
+  padding-right: 3rem !important;
+}
+
+.epub-reader .chapter-content .ereader-content p[data-paragraph-number]:hover {
+  background-color: rgba(99, 102, 241, 0.05);
+}
+
+/* Bookmark icon on hover */
+.epub-reader .chapter-content .ereader-content p[data-paragraph-number]::after {
+  content: '🔖';
+  position: absolute;
+  right: 0.5rem;
+  top: 0.5rem;
+  font-size: 1.25rem;
+  opacity: 0;
+  transition: opacity var(--transition-fast);
+  cursor: pointer;
+  user-select: none;
+}
+
+.epub-reader .chapter-content .ereader-content p[data-paragraph-number]:hover::after {
+  opacity: 0.5;
+}
+
+.epub-reader .chapter-content .ereader-content p[data-paragraph-number].bookmarked::after {
+  opacity: 1 !important;
+  filter: saturate(1.5);
 }
 
 .chapter-html h1,
@@ -978,7 +1036,7 @@ watch(
   .chapter-nav {
     padding: 1rem;
   }
-  
+
   .nav-btn {
     width: 40px;
     height: 40px;
@@ -991,36 +1049,36 @@ watch(
     align-items: flex-start;
     padding: 0 1rem;
   }
-  
+
   .book-info {
     margin-bottom: 1rem;
   }
-  
+
   .reader-controls {
     width: 100%;
     justify-content: space-between;
   }
-  
+
   .control-text {
     display: none;
   }
-  
+
   .control-separator {
     display: none;
   }
-  
+
   .chapter-content {
     padding: 2rem 1rem;
   }
-  
+
   .chapter-title {
     font-size: 1.5rem;
   }
-  
+
   .chapter-html {
     font-size: 1rem;
   }
-  
+
   .chapter-html .paragraph-number {
     position: static;
     display: inline-flex;
@@ -1033,16 +1091,16 @@ watch(
   .book-title {
     font-size: 1.25rem;
   }
-  
+
   .chapter-nav {
     padding: 0.5rem;
   }
-  
+
   .nav-btn {
     width: 36px;
     height: 36px;
   }
-  
+
   .nav-btn svg {
     width: 20px;
     height: 20px;

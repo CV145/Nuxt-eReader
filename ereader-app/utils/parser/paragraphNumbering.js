@@ -2,16 +2,18 @@
  * Add paragraph numbers to HTML content
  * @param {string} html - The HTML content to process
  * @param {boolean} enabled - Whether paragraph numbering is enabled
+ * @param {Function} isBookmarkedCallback - Optional callback to check if paragraph is bookmarked
  * @returns {string} Processed HTML with or without paragraph numbers
  */
-export function processParagraphNumbering(html, enabled) {
+export function processParagraphNumbering(html, enabled, isBookmarkedCallback = null) {
   console.log('processParagraphNumbering called with enabled:', enabled, 'html length:', html.length)
   
-  if (!enabled) {
+  if (!enabled && !isBookmarkedCallback) {
     // Remove existing paragraph numbers and data attributes if disabled
     const result = html
       .replace(/<span class="paragraph-number">\[\d+\]<\/span>\s*/g, '')
       .replace(/ data-paragraph-number="\d+"/g, '')
+      .replace(/<span class="bookmark-icon-inline">.*?<\/span>/g, '')
     console.log('Paragraph numbering disabled, returning original content')
     return result
   }

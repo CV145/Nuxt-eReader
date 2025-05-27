@@ -11,7 +11,22 @@ const toc = ref([])
 const currentChapterIndex = ref(0)
 const currentChapter = ref(null)
 const totalChapters = ref(0)
-const showParagraphNumbers = ref(false)
+
+// Initialize paragraph numbering from localStorage
+const initParagraphNumbers = () => {
+  if (typeof window !== 'undefined' && localStorage) {
+    try {
+      const saved = localStorage.getItem('ereader-paragraph-numbers')
+      return saved ? JSON.parse(saved) : false
+    } catch (e) {
+      console.warn('Failed to load paragraph numbers setting:', e)
+      return false
+    }
+  }
+  return false
+}
+
+const showParagraphNumbers = ref(initParagraphNumbers())
 
 export const useEpubReader = () => {
   // Computed
@@ -167,6 +182,15 @@ export const useEpubReader = () => {
 
   const toggleParagraphNumbers = () => {
     showParagraphNumbers.value = !showParagraphNumbers.value
+    
+    // Save to localStorage
+    if (typeof window !== 'undefined' && localStorage) {
+      try {
+        localStorage.setItem('ereader-paragraph-numbers', JSON.stringify(showParagraphNumbers.value))
+      } catch (e) {
+        console.warn('Failed to save paragraph numbers setting:', e)
+      }
+    }
   }
 
   const reset = () => {
@@ -178,7 +202,7 @@ export const useEpubReader = () => {
     currentChapterIndex.value = 0
     currentChapter.value = null
     totalChapters.value = 0
-    showParagraphNumbers.value = false
+    // Don't reset showParagraphNumbers - it's a user preference that should persist
   }
 
   return {
