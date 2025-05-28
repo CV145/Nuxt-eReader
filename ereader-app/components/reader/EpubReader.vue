@@ -60,6 +60,15 @@
             <span class="control-text">Bookmarks</span>
             <span v-if="bookmarkCount > 0" class="bookmark-badge">{{ bookmarkCount }}</span>
           </button>
+
+          <button
+            @click="showAIChat = true"
+            class="control-btn ai-chat-btn"
+            title="AI Assistant"
+          >
+            <Icon name="message-circle" :size="20" />
+            <span class="control-text">AI Chat</span>
+          </button>
         </div>
       </div>
     </header>
@@ -183,6 +192,14 @@
       @navigate-to-bookmark="navigateToBookmark"
     />
 
+    <!-- AI Chat -->
+    <AIChat
+      :book-id="bookId"
+      :is-open="showAIChat"
+      :book-context="aiBookContext"
+      @close="showAIChat = false"
+    />
+
     <!-- Note Add Modal -->
     <NoteAddModal
       :show="showNoteModal"
@@ -207,6 +224,7 @@ import NotebookSidebar from "~/components/NotebookSidebar.vue";
 import NoteAddModal from "~/components/notes/NoteAddModal.vue";
 import BookmarkIcon from "~/components/reader/BookmarkIcon.vue";
 import BookmarksList from "~/components/reader/BookmarksList.vue";
+import AIChat from "~/components/reader/AIChat.vue";
 
 // Props
 defineProps({
@@ -232,6 +250,7 @@ const {
   previousChapter,
   toggleParagraphNumbers,
   goToChapter,
+  parser,
 } = useEpubReader();
 
 // Notebook logic
@@ -253,6 +272,9 @@ const {
 const hoveredParagraph = ref(null);
 const bookmarkElements = ref(new Map());
 const showBookmarks = ref(false);
+
+// AI Chat state
+const showAIChat = ref(false);
 
 // Library for progress tracking
 const { updateBookProgress, getBook } = useLibrary();
@@ -317,6 +339,23 @@ const estimatedReadingTime = computed(() => {
   const avgWordsPerChapter = wordCount; // Simplified for now
   const totalRemainingWords = avgWordsPerChapter * remainingChapters;
   return Math.ceil(totalRemainingWords / 250);
+});
+
+// AI Book Context
+const aiBookContext = computed(() => {
+  const chapterText = processedChapterContent.value?.replace(/<[^>]*>/g, '') || '';
+  const excerpt = chapterText.substring(0, 2000) + (chapterText.length > 2000 ? '...' : '');
+  
+  return {
+    title: metadata.value?.title || 'Unknown Book',
+    author: metadata.value?.author || 'Unknown Author',
+    chapterIndex: currentChapterIndex.value,
+    chapterTitle: currentChapter.value?.title || `Chapter ${currentChapterIndex.value + 1}`,
+    currentChapter: currentChapter.value?.title || `Chapter ${currentChapterIndex.value + 1}`,
+    totalChapters: totalChapters.value,
+    excerpt: excerpt,
+    parser: parser.value // Include parser for full book extraction
+  };
 });
 
 function handleSelection() {
@@ -688,6 +727,16 @@ function updateBookmarkClasses() {
 
 .control-btn.has-bookmarks {
   position: relative;
+}
+
+.control-btn.ai-chat-btn {
+  background: var(--secondary-gradient);
+  border-color: transparent;
+}
+
+.control-btn.ai-chat-btn:hover {
+  background: var(--secondary-gradient);
+  transform: translateY(-1px) scale(1.05);
 }
 
 .bookmark-badge {

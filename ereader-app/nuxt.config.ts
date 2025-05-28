@@ -10,5 +10,11 @@ export default defineNuxtConfig({
     optimizeDeps: {
       include: ['jszip', 'xml2js']
     }
+  },
+  runtimeConfig: {
+    public: {
+      deepseekApiKey: process.env.NUXT_PUBLIC_DEEPSEEK_API_KEY || '',
+      deepseekApiUrl: process.env.NUXT_PUBLIC_DEEPSEEK_API_URL || 'https://api.deepseek.com/v1'
+    }
   }
 })
