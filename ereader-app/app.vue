@@ -51,4 +51,37 @@ input:focus {
 html {
   scroll-behavior: smooth;
 }
+
+/* Context Menu Styles (Global) */
+.context-menu {
+  position: fixed;
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+  padding: 4px;
+  z-index: 10000;
+  min-width: 180px;
+}
+
+.context-menu .menu-item {
+  padding: 8px 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+  font-size: 14px;
+  color: #333;
+}
+
+.context-menu .menu-item:hover {
+  background: #f3f4f6;
+  color: #3b82f6;
+}
+
+.context-menu .menu-item svg {
+  flex-shrink: 0;
+}
 </style> 
