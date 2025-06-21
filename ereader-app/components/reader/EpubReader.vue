@@ -23,16 +23,6 @@
           <div class="control-separator"></div>
 
           <button
-            @click="toggleParagraphNumbers"
-            class="control-btn"
-            :class="{ active: showParagraphNumbers }"
-            title="Toggle Paragraph Numbers"
-          >
-            <Icon name="hash" :size="20" />
-            <span class="control-text">Paragraphs</span>
-          </button>
-
-          <button
             @click="$emit('showToc')"
             class="control-btn"
             title="Table of Contents"
@@ -52,16 +42,6 @@
           </button>
 
           <button
-            @click="toggleFocusMode"
-            class="control-btn"
-            :class="{ active: focusMode }"
-            title="Focus Mode"
-          >
-            <Icon name="eye" :size="20" />
-            <span class="control-text">Focus</span>
-          </button>
-
-          <button
             @click="showBookmarks = true"
             class="control-btn"
             title="View Bookmarks"
@@ -78,7 +58,7 @@
             title="Download Chapter as Text"
           >
             <Icon name="download" :size="20" />
-            <span class="control-text">Download</span>
+            <span class="control-text">Download CH Text</span>
           </button>
         </div>
       </div>
@@ -106,20 +86,9 @@
     <div class="content-container" :class="{ 'side-by-side': showNotebook }">
       <!-- Reading Area -->
       <div class="reading-area">
-        <!-- Chapter Navigation -->
-        <nav class="chapter-nav nav-prev" v-if="!focusMode">
-          <button
-            @click="previousChapter"
-            :disabled="!hasPreviousChapter || isLoading"
-            class="nav-btn hover-lift"
-            :class="{ disabled: !hasPreviousChapter || isLoading }"
-          >
-            <Icon name="chevron-left" :size="24" />
-          </button>
-        </nav>
 
-        <!-- Chapter Content -->
-        <main ref="contentWrapper" class="chapter-content-wrapper" :class="{ 'focus-mode': focusMode }">
+        <!-- Chapter Content (Always in Focus Mode) -->
+        <main ref="contentWrapper" class="chapter-content-wrapper focus-mode">
         <article
           class="chapter-content"
           @mouseup="handleSelection"
@@ -146,17 +115,10 @@
             </button>
           </div>
 
-          <!-- Chapter Content -->
-          <div
-            v-else-if="processedChapterContent && !focusMode"
-            class="chapter-html ereader-content"
-            v-html="processedChapterContent"
-            @contextmenu="handleContextMenu"
-          ></div>
           
-          <!-- Focus Mode Content -->
+          <!-- Focus Mode Content (Always Active) -->
           <div
-            v-else-if="focusMode"
+            v-else-if="processedChapterContent"
             class="chapter-html ereader-content focus-content"
           >
             <div v-if="focusModeContent" v-html="focusModeContent"></div>
@@ -173,18 +135,6 @@
           </div>
         </article>
         </main>
-
-        <!-- Chapter Navigation -->
-        <nav class="chapter-nav nav-next" v-if="!focusMode">
-          <button
-            @click="nextChapter"
-            :disabled="!hasNextChapter || isLoading"
-            class="nav-btn hover-lift"
-            :class="{ disabled: !hasNextChapter || isLoading }"
-          >
-            <Icon name="chevron-right" :size="24" />
-          </button>
-        </nav>
       </div>
 
       <!-- Notes Sidebar -->
@@ -198,8 +148,8 @@
       </div>
     </div>
 
-    <!-- Focus Mode Controls -->
-    <div v-if="focusMode" class="focus-mode-controls">
+    <!-- Focus Mode Controls (Always Active) -->
+    <div class="focus-mode-controls">
       <button @click="focusPreviousParagraph" :disabled="currentParagraphIndex <= 0 && !hasPreviousChapter" class="focus-nav-btn">
         <Icon name="chevron-up" :size="20" />
       </button>
@@ -215,9 +165,6 @@
       </button>
       <button @click="bookmarkCurrentParagraph" class="focus-action-btn" :class="{ active: isCurrentParagraphBookmarked }" title="Bookmark Current Paragraph">
         <Icon name="bookmark" :size="18" />
-      </button>
-      <button @click="exitFocusMode" class="focus-exit-btn" data-exit-focus>
-        <Icon name="x" :size="20" />
       </button>
     </div>
 
@@ -346,19 +293,20 @@ const hasRestoredScroll = ref(false);
 const saveScrollPosition = () => {
   if (
     bookId.value &&
-    bookId.value !== "unknown-book" &&
-    lastScrollPosition.value >= 0
+    bookId.value !== "unknown-book"
   ) {
     console.log(
-      "Saving scroll position:",
-      lastScrollPosition.value,
+      "Saving paragraph position:",
+      currentParagraphIndex.value,
       "for chapter:",
       currentChapterIndex.value
     );
+    // Save both scroll position and paragraph position
     updateBookProgress(
       bookId.value,
       currentChapterIndex.value,
-      lastScrollPosition.value
+      lastScrollPosition.value,
+      currentParagraphIndex.value // Add paragraph position
     );
   }
 };
@@ -602,6 +550,8 @@ function focusNextParagraph() {
   if (currentParagraphIndex.value < totalParagraphs.value - 1) {
     currentParagraphIndex.value++;
     updateFocusModeContent();
+    // Save progress after each paragraph navigation
+    saveScrollPosition();
   } else {
     // At the end of current chapter, advance to next chapter
     if (hasNextChapter.value) {
@@ -611,6 +561,7 @@ function focusNextParagraph() {
         // Wait for new chapter content to load
         setTimeout(() => {
           updateFocusModeContent();
+          saveScrollPosition(); // Save after chapter change
         }, 300);
       });
     } else {
@@ -624,6 +575,8 @@ function focusPreviousParagraph() {
   if (currentParagraphIndex.value > 0) {
     currentParagraphIndex.value--;
     updateFocusModeContent();
+    // Save progress after each paragraph navigation
+    saveScrollPosition();
   } else {
     // At the beginning of current chapter, go to previous chapter
     if (hasPreviousChapter.value) {
@@ -636,6 +589,7 @@ function focusPreviousParagraph() {
           setTimeout(() => {
             currentParagraphIndex.value = Math.max(0, totalParagraphs.value - 1);
             updateFocusModeContent();
+            saveScrollPosition(); // Save after chapter change
           }, 100);
         }, 300);
       });
@@ -717,8 +671,13 @@ function handleFocusModeKeydown(event) {
       event.preventDefault();
       focusPreviousParagraph();
       break;
+    case 'b':
+    case 'B':
+      event.preventDefault();
+      bookmarkCurrentParagraph();
+      break;
     case 'Escape':
-      exitFocusMode();
+      // Focus mode is always active, so ESC does nothing
       break;
   }
   
@@ -979,12 +938,26 @@ watch(
       await nextTick();
       setupBookmarkHandlers();
       
-      // Update focus mode content if active
-      if (focusMode.value) {
-        setTimeout(() => {
-          updateFocusModeContent();
-        }, 200);
+      // Auto-enter focus mode and restore paragraph position
+      if (!focusMode.value) {
+        focusMode.value = true;
+        
+        // Restore saved paragraph position
+        const book = getBook(bookId.value);
+        const savedParagraph = book?.readingProgress?.currentParagraph || 0;
+        
+        // Only restore if we're on the same chapter
+        if (book?.readingProgress?.currentChapter === currentChapterIndex.value) {
+          currentParagraphIndex.value = savedParagraph;
+          console.log('Restored paragraph position:', savedParagraph);
+        } else {
+          currentParagraphIndex.value = 0;
+        }
       }
+      
+      setTimeout(() => {
+        updateFocusModeContent();
+      }, 200);
     }
   },
   { immediate: true }

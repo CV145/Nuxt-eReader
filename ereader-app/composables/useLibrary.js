@@ -75,7 +75,8 @@ export const useLibrary = () => {
         lastOpened: null,
         readingProgress: {
           currentChapter: 0,
-          scrollPosition: 0
+          scrollPosition: 0,
+          currentParagraph: 0
         }
       }
 
@@ -128,12 +129,13 @@ export const useLibrary = () => {
     }
   }
 
-  const updateBookProgress = (bookId, chapter, scrollPosition) => {
+  const updateBookProgress = (bookId, chapter, scrollPosition, paragraphPosition = 0) => {
     const book = books.value.find(b => b.id === bookId)
     if (book) {
       book.readingProgress = {
         currentChapter: chapter,
-        scrollPosition: scrollPosition
+        scrollPosition: scrollPosition,
+        currentParagraph: paragraphPosition
       }
       book.lastOpened = new Date().toISOString()
       saveLibrary()
