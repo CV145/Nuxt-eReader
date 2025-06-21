@@ -4,10 +4,15 @@ export default defineNuxtConfig({
   devtools: { enabled: true },
   css: ['~/assets/css/main.css'],
   ssr: false, // Single Page Application mode for client-side only
+  app: {
+    baseURL: process.env.NUXT_APP_BASE_URL || '/',
+    buildAssetsDir: 'assets'
+  },
   nitro: {
+    preset: 'static',
     prerender: {
       crawlLinks: true,
-      routes: ['/']
+      routes: ['/', '/404.html']
     }
   },
   vite: {
