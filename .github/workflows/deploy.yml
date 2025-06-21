@@ -30,17 +30,17 @@ jobs:
         uses: actions/configure-pages@v4
         
       - name: Install dependencies
-        run: npm ci
+        run: cd ereader-app && npm ci
 
       - name: Build
-        run: npm run generate
+        run: cd ereader-app && npm run generate
         env:
           NUXT_APP_BASE_URL: /Nuxt-eReader/
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: ./.output/public
+          path: ./ereader-app/.output/public
 
   deploy:
     environment:
